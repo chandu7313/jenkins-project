@@ -6,7 +6,7 @@ pipeline {
     }
 
     environment {
-        DOCKER_IMAGE   = 'kavya00/jenkins_devops'
+        DOCKER_IMAGE   = 'chandu9000/jenkins_devops'
         DOCKER_TAG     = 'latest'
         CONTAINER_NAME = 'jenkins_devops_container'
         PORT           = '3000'
@@ -17,7 +17,7 @@ pipeline {
         stage('Clone Code') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/kavyareddy1313/jenkins.git'
+                    url: 'https://github.com/chandu7313/jenkins.git'
             }
         }
 
@@ -50,7 +50,7 @@ pipeline {
             steps {
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'dockerhub',
+                        credentialsId: 'dockerhub-gcm',
                         usernameVariable: 'DOCKER_USERNAME',
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
