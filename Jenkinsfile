@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    tools {
-        nodejs 'Node22'  
-    }
-
     environment {
         DOCKER_IMAGE   = 'chandu9000/jenkins_devops'
         DOCKER_TAG     = 'latest'
@@ -21,20 +17,11 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Install & Test') {
             steps {
                 sh '''
-                    node -v
-                    npm -v
-                    npm cache clean --force
-                    npm install
+                    docker run --rm -v $(pwd):/app -w /app node:22-alpine sh -c "npm install && npm test"
                 '''
-            }
-        }
-
-        stage('Run Test Cases') {
-            steps {
-                sh 'npm test'
             }
         }
 
