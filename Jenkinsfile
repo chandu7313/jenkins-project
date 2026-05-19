@@ -17,10 +17,14 @@ pipeline {
             }
         }
 
-        stage('Install & Test') {
+        stage('Install Dependencies & Run Tests') {
             steps {
                 sh '''
-                    docker run --rm -v $(pwd):/app -w /app node:22-alpine sh -c "npm install && npm test"
+                    docker run --rm \
+                    -v $WORKSPACE:/app \
+                    -w /app \
+                    node:22-alpine \
+                    sh -c "npm install && npm test"
                 '''
             }
         }
@@ -33,7 +37,7 @@ pipeline {
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Docker Login') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -42,11 +46,18 @@ pipeline {
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
                 ]) {
-                    sh """`
+                    sh """
                         echo \$DOCKER_PASSWORD | docker login -u \$DOCKER_USERNAME --password-stdin
-                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
                     """
                 }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                sh """
+                    docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                """
             }
         }
 
@@ -71,18 +82,21 @@ pipeline {
 
         stage('Verify Deployment') {
             steps {
-                sh 'docker ps'
+                sh '''
+                    docker ps
+                '''
             }
         }
     }
 
     post {
+
         success {
             echo 'Pipeline executed successfully 🚀'
         }
 
         failure {
-            echo 'Pipeline failed ❌ Check logs'
+            echo 'Pipeline failed ❌'
         }
 
         always {
