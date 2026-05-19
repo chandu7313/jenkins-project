@@ -37,12 +37,12 @@ pipeline {
             steps {
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'dockerhub-gcm',
+                        credentialsId: 'jenkins-project',
                         usernameVariable: 'DOCKER_USERNAME',
                         passwordVariable: 'DOCKER_PASSWORD'
                     )
                 ]) {
-                    sh """
+                    sh """`
                         echo \$DOCKER_PASSWORD | docker login -u \$DOCKER_USERNAME --password-stdin
                         docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
                     """
