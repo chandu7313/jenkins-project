@@ -1,3 +1,15 @@
 node_modules
 npm-debug.log*
-yarn-debug.log* 
+yarn-debug.log*
+yarn-error.log*
+.git
+.gitignore
+Jenkinsfile
+*.md
+.DS_Store
+.env
+.env.*
+tests
+jest.config.*
+.vscode
+.idea

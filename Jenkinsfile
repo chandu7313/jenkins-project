@@ -3,9 +3,15 @@ pipeline {
 
     environment {
         DOCKER_IMAGE   = 'chandu9000/jenkins_devops'
-        DOCKER_TAG     = 'latest'
+        DOCKER_TAG     = "${env.BUILD_NUMBER}"
         CONTAINER_NAME = 'jenkins_devops_container'
-        PORT           = '3000'
+        APP_PORT       = '3000'
+    }
+
+    options {
+        timeout(time: 15, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
     stages {
@@ -24,7 +30,7 @@ pipeline {
                     -v $WORKSPACE:/app \
                     -w /app \
                     node:22-alpine \
-                    sh -c "npm install && npm test"
+                    sh -c "npm ci && npm test"
                 '''
             }
         }
@@ -32,12 +38,15 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh """
-                    docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                    docker build \
+                        -t ${DOCKER_IMAGE}:${DOCKER_TAG} \
+                        -t ${DOCKER_IMAGE}:latest \
+                        .
                 """
             }
         }
 
-        stage('Docker Login') {
+        stage('Docker Login & Push') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -48,59 +57,73 @@ pipeline {
                 ]) {
                     sh """
                         echo \$DOCKER_PASSWORD | docker login -u \$DOCKER_USERNAME --password-stdin
+                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker push ${DOCKER_IMAGE}:latest
                     """
                 }
             }
         }
 
-        stage('Push Docker Image') {
-            steps {
-                sh """
-                    docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                """
-            }
-        }
-
-        stage('Stop Old Container') {
+        stage('Deploy') {
             steps {
                 sh """
                     docker rm -f ${CONTAINER_NAME} || true
-                """
-            }
-        }
 
-        stage('Run New Container') {
-            steps {
-                sh """
                     docker run -d \
-                    --name ${CONTAINER_NAME} \
-                    -p ${PORT}:3000 \
-                    ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        --name ${CONTAINER_NAME} \
+                        --restart unless-stopped \
+                        -p ${APP_PORT}:3000 \
+                        -e NODE_ENV=production \
+                        --memory=512m \
+                        --cpus=0.5 \
+                        ${DOCKER_IMAGE}:${DOCKER_TAG}
                 """
             }
         }
 
-        stage('Verify Deployment') {
+        stage('Health Check') {
             steps {
                 sh '''
-                    docker ps
+                    echo "Waiting for application to start..."
+                    sleep 5
+
+                    MAX_RETRIES=6
+                    RETRY_COUNT=0
+
+                    until curl -sf http://localhost:3000/ > /dev/null 2>&1; do
+                        RETRY_COUNT=$((RETRY_COUNT + 1))
+                        if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                            echo "Health check failed after $MAX_RETRIES attempts"
+                            docker logs jenkins_devops_container
+                            exit 1
+                        fi
+                        echo "Retry $RETRY_COUNT/$MAX_RETRIES — waiting 5s..."
+                        sleep 5
+                    done
+
+                    echo "Application is healthy and responding on port 3000"
+                    docker ps --filter name=jenkins_devops_container
                 '''
             }
         }
     }
 
     post {
-
         success {
-            echo 'Pipeline executed successfully 🚀'
+            echo "✅ Build #${env.BUILD_NUMBER} deployed successfully"
         }
 
         failure {
-            echo 'Pipeline failed ❌'
+            echo "❌ Build #${env.BUILD_NUMBER} failed"
+            sh """
+                docker rm -f ${CONTAINER_NAME} || true
+            """
         }
 
         always {
-            echo 'Pipeline finished'
+            // Clean up dangling images to save disk space
+            sh 'docker image prune -f || true'
+            echo "Pipeline finished — Build #${env.BUILD_NUMBER}"
         }
     }
 }
